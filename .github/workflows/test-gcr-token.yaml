@@ -1,0 +1,10 @@
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - id: test
+        name: Foo
+        uses: .github/workflows/gcr-token.yaml
