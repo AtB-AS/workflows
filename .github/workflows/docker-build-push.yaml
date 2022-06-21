@@ -8,18 +8,20 @@ on:
         type: string
         description: "Builds args passed to docker build"
         required: false
-      gcr_token:
-        type: string
-        description: "Container Registry access token"
-        required: true
-      tags:
-        type: string
-        description: "Comma separated list of tags to apply to the built container"
-        required: true
       image:
         type: string
         description: "Full path to the image (gcr.io/my/image)"
         required: true
+      workload_identity_provider:
+        type: string
+        description: "Workload identity federation provider"
+        required: false
+        default: "projects/939812594010/locations/global/workloadIdentityPools/ci-builds/providers/github"
+      workload_identity_service_account_email:
+        type: string
+        description: "IAM service account to generate credentials for"
+        required: false
+        default: "sa-gh-gcr-writer@atb-mobility-platform-staging.iam.gserviceaccount.com"
 
 jobs:
   build:
@@ -33,13 +35,29 @@ jobs:
         uses: docker/setup-buildx-action@v2
         with:
           install: true
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ inputs.image }}
+          tags: |
+            type=semver,pattern={{raw}}
+            type=sha,prefix=,enable=true,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ inputs.workload_identity_provider }}
+          service_account: ${{ inputs.workload_identity_service_account_email }}
       - id: gcr
         name: Configure docker for GCR
         uses: docker/login-action@v1
         with:
           registry: gcr.io
           username: oauth2accesstoken
-          password: ${{ inputs.gcr_token }}
+          password: ${{ steps.auth.outputs.access_token }}
       - id: buildpush
         name: Build and push image
         uses: docker/build-push-action@v3
@@ -50,6 +68,6 @@ jobs:
           build-args: ${{ inputs.build_args }}
           secrets: ${{ secrets.build_secrets }}
           push: true
-          tags: ${{ inputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=${{ inputs.image }}
           cache-to: type=gha,mode=max,scope=${{ inputs.image }}

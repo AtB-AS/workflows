@@ -2,9 +2,10 @@ on:
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - id: test
-        name: Foo
-        uses: ./.github/workflows/gcr-token.yaml
+  build:
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/docker-build-push.yaml
+    with:
+      image: gcr.io/atb-mobility-platform/foo
