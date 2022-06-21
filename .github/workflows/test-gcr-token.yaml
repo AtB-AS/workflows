@@ -7,4 +7,4 @@ jobs:
     steps:
       - id: test
         name: Foo
-        uses: .github/workflows/gcr-token.yaml
+        uses: ./.github/workflows/gcr-token.yaml
