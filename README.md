@@ -10,7 +10,7 @@ The workflow authenticates to Google Container Registry through Workload Identit
 The workflow generates the following tags on the built container image:
 - `latest` if the event was a push to the default branch of the repository.
 - `commit-sha` (short) on push.
-- `vx.y.z` for push events with tag.
+- `vx.y.z` for push events with semver tag.
 
 ### Example usage:
 ```yaml
