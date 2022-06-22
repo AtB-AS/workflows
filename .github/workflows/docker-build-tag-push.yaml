@@ -16,12 +16,12 @@ on:
         type: string
         description: "Workload identity federation provider"
         required: false
-        default: "projects/939812594010/locations/global/workloadIdentityPools/ci-builds/providers/github"
+        default: "projects/827196677776/locations/global/workloadIdentityPools/ci-builds/providers/github"
       workload_identity_service_account_email:
         type: string
         description: "IAM service account to generate credentials for"
         required: false
-        default: "sa-gh-gcr-writer@atb-mobility-platform-staging.iam.gserviceaccount.com"
+        default: "sa-gh-gcr-writer@atb-mobility-platform.iam.gserviceaccount.com"
 
 jobs:
   build:
