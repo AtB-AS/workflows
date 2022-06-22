@@ -7,6 +7,6 @@ on:
 
 jobs:
   build:
-    uses: ./.github/workflows/docker-build-push.yaml
+    uses: ./.github/workflows/docker-build-tag-push.yaml
     with:
       image: gcr.io/atb-mobility-platform/foo
