@@ -1,0 +1,12 @@
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - main
+
+jobs:
+  build:
+    uses: ./.github/workflows/docker-build-push.yaml
+    with:
+      image: gcr.io/atb-mobility-platform/foo
