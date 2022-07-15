@@ -71,7 +71,7 @@ jobs:
         with:
           context: .
           builder: ${{ steps.buildx.outputs.name }}
-          file: Dockerfile
+          file: ${{ inputs.dockerfile }}
           build-args: ${{ inputs.build_args }}
           secrets: ${{ secrets.build_secrets }}
           push: true
