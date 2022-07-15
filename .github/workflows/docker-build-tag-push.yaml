@@ -4,6 +4,10 @@ on:
       build_secrets:
         required: false
     inputs:
+      dockerfile:
+        type: string
+        default: Dockerfile
+        required: false
       build_args:
         type: string
         description: "Builds args passed to docker build"
