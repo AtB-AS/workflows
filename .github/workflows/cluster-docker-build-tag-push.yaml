@@ -46,9 +46,9 @@ jobs:
           token: ${{ secrets.github_pat }}
       - uses: imranismail/setup-kustomize@v1
       - run: |
-          TAG=`echo -e ${{ needs.build.outputs.tags }} | head -1`
+          TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
           cd manifests/applications/prod && \
-          kustomize edit set image ${{ inputs.instance_id }}=${{ inputs.image }}:$TAG && \
+          kustomize edit set image ${{ inputs.instance_id }}=$TAG && \
           cat kustomization.yaml
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
@@ -66,9 +66,9 @@ jobs:
           token: ${{ secrets.github_pat }}
       - uses: imranismail/setup-kustomize@v1
       - run: |
-          TAG=`echo -e ${{ needs.build.outputs.tags }} | head -1`
+          TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
           cd manifests/applications/staging && \
-          kustomize edit set image ${{ inputs.instance_id }}=${{ inputs.image }}:$TAG && \
+          kustomize edit set image ${{ inputs.instance_id }}=$TAG && \
           cat kustomization.yaml
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
