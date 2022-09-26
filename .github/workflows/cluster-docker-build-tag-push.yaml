@@ -6,6 +6,10 @@ on:
       github_pat:
         required: true
     inputs:
+      application:
+        type: string
+        default: amp
+        required: false
       dockerfile:
         type: string
         default: Dockerfile
@@ -47,12 +51,11 @@ jobs:
       - uses: imranismail/setup-kustomize@v1
       - run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
-          cd manifests/applications/prod && \
-          kustomize edit set image ${{ inputs.instance_id }}=$TAG && \
-          cat kustomization.yaml
+          cd manifests/applications/${{ inputs.application }}/prod && \
+          kustomize edit set image ${{ inputs.instance_id }}=$TAG
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: '[ci] prod: bump ${{ inputs.instance_id }} image'
+          commit_message: '[ci] prod: bump ${{ inputs.application }}/${{ inputs.instance_id }} image'
           branch: main
   bump_infra_staging:
     if: github.event_name == 'push'
@@ -67,12 +70,11 @@ jobs:
       - uses: imranismail/setup-kustomize@v1
       - run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
-          cd manifests/applications/staging && \
-          kustomize edit set image ${{ inputs.instance_id }}=$TAG && \
-          cat kustomization.yaml
+          cd manifests/applications/${{ inputs.application }}/staging && \
+          kustomize edit set image ${{ inputs.instance_id }}=$TAG
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: '[ci] staging: bump ${{ inputs.instance_id }} image'
+          commit_message: '[ci] staging: bump ${{ inputs.application }}/${{ inputs.instance_id }} image'
           branch: main
   build:
     permissions:
