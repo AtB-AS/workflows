@@ -6,6 +6,9 @@ on:
       github_pat:
         required: true
     inputs:
+      deploy:
+        type: boolean
+        default: true
       application:
         type: string
         default: amp
@@ -39,7 +42,7 @@ on:
 
 jobs:
   bump_infra_prod:
-    if: github.event_name == 'release'
+    if: inputs.deploy && github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -58,7 +61,7 @@ jobs:
           commit_message: '[ci] prod: bump ${{ inputs.application }}/${{ inputs.instance_id }} image'
           branch: main
   bump_infra_staging:
-    if: github.event_name == 'push'
+    if: inputs.deploy && github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     steps:
