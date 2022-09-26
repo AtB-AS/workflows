@@ -51,7 +51,7 @@ jobs:
       - uses: imranismail/setup-kustomize@v1
       - run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
-          cd manifests/applications/${{ inputs.application }}/prod && \
+          cd manifests/applications/${{ inputs.application }}/overlays/prod && \
           kustomize edit set image ${{ inputs.instance_id }}=$TAG
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
@@ -70,7 +70,7 @@ jobs:
       - uses: imranismail/setup-kustomize@v1
       - run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
-          cd manifests/applications/${{ inputs.application }}/staging && \
+          cd manifests/applications/${{ inputs.application }}/overlays/staging && \
           kustomize edit set image ${{ inputs.instance_id }}=$TAG
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
