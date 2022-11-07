@@ -66,7 +66,7 @@ jobs:
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
           for o in $OVERLAY
           do
-            ( cd $(basename ${{ inputs.repository }})/${{ inputs.overlays_base }}/$o && \
+            ( cd {{ inputs.overlays_base }}/$o && \
               kustomize edit set image ${{ inputs.image }}=$TAG )
           done
       - uses: stefanzweifel/git-auto-commit-action@v4
@@ -90,7 +90,7 @@ jobs:
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
           for o in $OVERLAY
           do
-            ( cd $(basename ${{ inputs.repository }})/${{ inputs.overlays_base }}/$o && \
+            ( cd {{ inputs.overlays_base }}/$o && \
               kustomize edit set image ${{ inputs.image }}=$TAG )
           done
       - uses: stefanzweifel/git-auto-commit-action@v4
