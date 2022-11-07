@@ -32,11 +32,10 @@ on:
 
 jobs:
   build:
-    uses: atb-as/workflows/.github/workflows/cluster-docker-build-tag-push.yaml@v1
+    uses: atb-as/workflows/.github/workflows/cluster-docker-build-tag-push.yaml@v2
+
     with:
-      application: amp
       image: gcr.io/atb-mobility-platform/foo
-      instance_id: foo
     secrets:
       github_pat: ${{ secrets.GH_PAT }}
 ```

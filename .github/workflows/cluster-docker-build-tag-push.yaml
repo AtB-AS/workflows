@@ -9,10 +9,6 @@ on:
       deploy:
         type: boolean
         default: true
-      application:
-        type: string
-        default: amp
-        required: false
       dockerfile:
         type: string
         default: Dockerfile
@@ -21,10 +17,22 @@ on:
         type: string
         description: "Builds args passed to docker build"
         required: false
-      instance_id:
+      repository:
         type: string
-        description: "Instance id used in cluster-infra"
-        required: true
+        description: "GitHub repository containing the kustomization"
+        default: atb-as/gcp-infra
+      overlays_base:
+        type: string
+        description: "Base path to directory holding kustomization overlays"
+        default: manifests/amp/base/overlays
+      release_overlay:
+        type: string
+        description: "Overlay(s) to edit on GitHub `release` event"
+        default: prod
+      push_overlay:
+        type: string
+        description: "Overlay(s) to edit on GitHub `push` event"
+        default: staging
       image:
         type: string
         description: "Full path to the image (gcr.io/my/image)"
@@ -48,17 +56,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: atb-as/cluster-infra
+          repository: ${{ inputs.repository }}
           ref: main
           token: ${{ secrets.github_pat }}
       - uses: imranismail/setup-kustomize@v1
-      - run: |
+      - env:
+          OVERLAY=${{ inputs.release_overlay }}
+        run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
-          cd manifests/applications/${{ inputs.application }}/overlays/prod && \
-          kustomize edit set image ${{ inputs.instance_id }}=$TAG
+          for o in $OVERLAY
+          do
+            ( cd $(basename ${{ inputs.repository }})/${{ inputs.overlays_base }}/$o && \
+              kustomize edit set image ${{ inputs.image }}=$TAG )
+          done
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: '[ci] prod: bump ${{ inputs.application }}/${{ inputs.instance_id }} image'
+          commit_message: '[ci] prod: bump ${{ inputs.image }} image'
           branch: main
   bump_infra_staging:
     if: inputs.deploy && github.event_name == 'push'
@@ -67,17 +80,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          repository: atb-as/cluster-infra
+          repository: ${{ inputs.repository }}
           ref: main
           token: ${{ secrets.github_pat }}
       - uses: imranismail/setup-kustomize@v1
-      - run: |
+      - env:
+          OVERLAY=${{ inputs.push_overlay }}
+        run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
-          cd manifests/applications/${{ inputs.application }}/overlays/staging && \
-          kustomize edit set image ${{ inputs.instance_id }}=$TAG
+          for o in $OVERLAY
+          do
+            ( cd $(basename ${{ inputs.repository }})/${{ inputs.overlays_base }}/$o && \
+              kustomize edit set image ${{ inputs.image }}=$TAG )
+          done
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: '[ci] staging: bump ${{ inputs.application }}/${{ inputs.instance_id }} image'
+          commit_message: '[ci] staging: bump ${{ inputs.image }} image'
           branch: main
   build:
     permissions:
