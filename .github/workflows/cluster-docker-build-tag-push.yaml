@@ -25,6 +25,10 @@ on:
         type: string
         description: "Base path to directory holding kustomization overlays"
         default: manifests/amp/base/overlays
+      ref:
+        type: string
+        description: "ref to push changes to"
+        default: main
       release_overlay:
         type: string
         description: "Overlay(s) to edit on GitHub `release` event"
@@ -57,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository }}
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.github_pat }}
       - uses: imranismail/setup-kustomize@v2
       - env:
@@ -72,7 +76,7 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: '[ci] prod: bump ${{ inputs.image }} image'
-          branch: main
+          branch: ${{ inputs.ref }}
   bump_infra_staging:
     if: inputs.deploy && github.event_name == 'push'
     needs: build
@@ -81,7 +85,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository }}
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.github_pat }}
       - uses: imranismail/setup-kustomize@v2
       - env:
@@ -96,7 +100,7 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: '[ci] staging: bump ${{ inputs.image }} image'
-          branch: main
+          branch: ${{ inputs.ref }}
   build:
     permissions:
       id-token: write
