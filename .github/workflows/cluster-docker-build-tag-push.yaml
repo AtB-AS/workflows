@@ -24,7 +24,7 @@ on:
       overlays_base:
         type: string
         description: "Base path to directory holding kustomization overlays"
-        default: manifests/amp/base/overlays
+        default: manifests/amp/platform
       ref:
         type: string
         description: "ref to push changes to"
