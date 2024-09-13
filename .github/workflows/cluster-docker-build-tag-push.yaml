@@ -120,7 +120,7 @@ jobs:
       - name: Add GAR
         id: add-gar
         run: |
-          echo images=$(echo ${{ inputs.image }} | sed -E 's#(gcr.io)/(.*)#\1/\2 europe-west1-docker.pkg.dev/amp-artifacts/amp/\2#g') >> "$GITHUB_OUTPUT"
+          echo images=$(echo ${{ inputs.image }} | sed -E 's#(gcr.io/atb-mobility-platform)/(.*)#\1/\2\neurope-west1-docker.pkg.dev/amp-artifacts/amp/\2#g') >> "$GITHUB_OUTPUT"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
