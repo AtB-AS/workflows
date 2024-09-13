@@ -122,7 +122,7 @@ jobs:
         run: |
           {
             echo 'images<<EOF'
-            echo ${{ inputs.image }} | sed -E 's#(gcr.io/atb-mobility-platform)/(.*)#\1/\2\neurope-west1-docker.pkg.dev/amp-artifacts/amp/\2#g'
+            echo ${{ inputs.image }} | sed -E 's#(gcr.io/atb-mobility-platform)/(.*)#europe-west1-docker.pkg.dev/amp-artifacts/amp/\2\n\1/\2#g'
             echo EOF
           } >> "$GITHUB_OUTPUT"
       - name: Docker meta
