@@ -78,7 +78,7 @@ jobs:
           commit_message: '[ci] prod: bump ${{ inputs.image }} image'
           branch: ${{ inputs.ref }}
   bump_infra_staging:
-    if: inputs.deploy && github.event_name == 'push'
+    if: inputs.deploy && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     steps:
