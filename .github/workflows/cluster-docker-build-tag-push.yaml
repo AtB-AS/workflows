@@ -9,6 +9,11 @@ on:
       deploy:
         type: boolean
         default: true
+      bump_staging:
+        type: boolean
+        default: false
+        description: "Force bump staging overlay. Only use this if you know what you are doing."
+        required: false
       dockerfile:
         type: string
         default: Dockerfile
@@ -78,7 +83,7 @@ jobs:
           commit_message: '[ci] prod: bump ${{ inputs.image }} image'
           branch: ${{ inputs.ref }}
   bump_infra_staging:
-    if: inputs.deploy && github.event_name == 'push'
+    if: inputs.deploy && (github.event_name == 'push' || inputs.bump_staging == true)
     needs: build
     runs-on: ubuntu-latest
     steps:
