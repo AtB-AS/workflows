@@ -45,7 +45,7 @@ on:
         type: string
         description: "Docker image repository name in GAR: amp = images hosted in cluster; dev = dev env and test images"
         default: amp
-      image_platforms
+      image_platforms:
         type: string
         description: "Platform to build the image for, comma separated list. Example: linux/amd64,linux/arm64"
         default: linux/amd64
