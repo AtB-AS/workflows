@@ -6,10 +6,6 @@ on:
       github_pat:
         required: true
     inputs:
-      docker_repository:
-        type: string
-        description: "Docker repository name in GAR: amp = images hosted in cluster; dev = dev env and test images"
-        default: amp
       deploy:
         type: boolean
         default: true
@@ -45,6 +41,10 @@ on:
         type: string
         description: "Full path to the image (gcr.io/my/image)"
         required: true
+      image_repository:
+        type: string
+        description: "Docker image repository name in GAR: amp = images hosted in cluster; dev = dev env and test images"
+        default: amp
       workload_identity_provider:
         type: string
         description: "Workload identity federation provider"
@@ -126,7 +126,7 @@ jobs:
         run: |
           {
             echo 'images<<EOF'
-            echo ${{ inputs.image }} | sed -E 's#(gcr.io/atb-mobility-platform)/(.*)#europe-west1-docker.pkg.dev/amp-artifacts/${{ inputs.docker_repository }}/\2#g'
+            echo ${{ inputs.image }} | sed -E 's#(gcr.io/atb-mobility-platform)/(.*)#europe-west1-docker.pkg.dev/amp-artifacts/${{ inputs.image_repository }}/\2#g'
             echo EOF
           } >> "$GITHUB_OUTPUT"
       - name: Docker meta
