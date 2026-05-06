@@ -2,8 +2,7 @@
 
 Collection of reusable GitHub Actions workflows:
 
-* [Docker Build, Push & Deploy](#docker-build-push--deploy)
-* [Docker build & Push](#docker-build--push)
+- [Docker Build, Push & Deploy](#docker-build-push--deploy)
 
 ## Docker Build, Push & Deploy
 
@@ -28,7 +27,7 @@ on:
   release:
     types: [published]
   push:
-    branches: ['main']
+    branches: ["main"]
 
 jobs:
   build:
@@ -70,40 +69,3 @@ Only do this if there are changes in main that cannot be deployed to production.
 ### Rolling back a release
 
 It's preferable to do this as a PR in the `cluster-infra` repo. Do a revert of the commit that deployed the release you want to roll back and create a PR with the reverted commit.
-
-## Docker Build & Push
-
-[Workflow file](.github/workflows/docker-build-tag-push.yaml)
-
-Sets up docker and builds a container from `Dockerfile` in the calling repository.
-
-The workflow authenticates to Google Container Registry through Workload Identity Federation. The calling repository needs to be given access to use workload identity. Ask #team-platform about this.
-
-The workflow generates the following tags on the built container image:
-
-- `latest` if the event was a push to the default branch of the repository.
-- `commit-sha` (short) on push.
-- `vx.y.z` for push events with semver tag.
-
-### Example usage
-
-```yaml
-name: Docker Build & Push
-
-on:
-  push:
-    tags:
-      - v*
-    branches:
-      - main
-
-jobs:
-  build:
-    uses: atb-as/workflows/.github/workflows/docker-build-push.yaml@main
-    with:
-      image: gcr.io/atb-mobility-platform/foo
-      build_args: |
-        FOO=BAR
-      secrets: |
-        PASSWORD=shh
-```
