@@ -39,6 +39,30 @@ jobs:
       github_pat: ${{ secrets.GH_PAT }}
 ```
 
+### Building a migrations image alongside the app image
+
+If your service applies database migrations (e.g. a [Flyway](https://documentation.red-gate.com/flyway)
+image run as an ArgoCD PreSync hook), set `migrations_dockerfile` to build a **second image in
+the same run**. Both images are built before anything is deployed, so if either build fails the
+whole run fails and **neither** image is bumped — and on success both image tags are bumped in
+the same infra commit (one ArgoCD sync), keeping the app and its migrations atomic.
+
+```yaml
+jobs:
+  build:
+    uses: atb-as/workflows/.github/workflows/cluster-docker-build-tag-push.yaml@v2
+    with:
+      image: gcr.io/atb-mobility-platform/foo
+      migrations_dockerfile: Dockerfile.migrations
+    secrets:
+      github_pat: ${{ secrets.GH_PAT }}
+```
+
+The migrations image is named `<image>-migrations` by default (e.g.
+`gcr.io/atb-mobility-platform/foo-migrations`); override with `migrations_image`. It is tagged
+the same way as the app image (short SHA on push, semver on release). Omit
+`migrations_dockerfile` and the workflow behaves exactly as before (single image).
+
 ### Deploy to staging (normal PR flow)
 
 1. Create PR
