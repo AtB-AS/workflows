@@ -13,6 +13,16 @@ on:
         type: string
         default: Dockerfile
         required: false
+      migrations_dockerfile:
+        type: string
+        description: "If set, also build a migrations image from this Dockerfile and bump it alongside the app image in the same commit."
+        default: ""
+        required: false
+      migrations_image:
+        type: string
+        description: "Full path for the migrations image (gcr.io/my/image). Defaults to <image>-migrations."
+        default: ""
+        required: false
       build_args:
         type: string
         description: "Builds args passed to docker build"
@@ -74,6 +84,7 @@ jobs:
       - uses: imranismail/setup-kustomize@v2
       - env:
           OVERLAY: ${{ inputs.release_overlay }}
+          MIGRATIONS_IMAGE: ${{ inputs.migrations_image != '' && inputs.migrations_image || format('{0}-migrations', inputs.image) }}
         run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
           for o in $OVERLAY
@@ -81,6 +92,14 @@ jobs:
             ( cd ${{ inputs.overlays_base }}/$o && \
               kustomize edit set image ${{ inputs.image }}=$TAG )
           done
+          if [ -n "${{ inputs.migrations_dockerfile }}" ]; then
+            TAG_MIG=`echo -e "${{ needs.build.outputs.migrations_tags }}" | head -1`
+            for o in $OVERLAY
+            do
+              ( cd ${{ inputs.overlays_base }}/$o && \
+                kustomize edit set image $MIGRATIONS_IMAGE=$TAG_MIG )
+            done
+          fi
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: '[ci] prod: bump ${{ inputs.image }} image'
@@ -98,6 +117,7 @@ jobs:
       - uses: imranismail/setup-kustomize@v2
       - env:
           OVERLAY: ${{ inputs.push_overlay }}
+          MIGRATIONS_IMAGE: ${{ inputs.migrations_image != '' && inputs.migrations_image || format('{0}-migrations', inputs.image) }}
         run: |
           TAG=`echo -e "${{ needs.build.outputs.tags }}" | head -1`
           for o in $OVERLAY
@@ -105,6 +125,14 @@ jobs:
             ( cd ${{ inputs.overlays_base }}/$o && \
               kustomize edit set image ${{ inputs.image }}=$TAG )
           done
+          if [ -n "${{ inputs.migrations_dockerfile }}" ]; then
+            TAG_MIG=`echo -e "${{ needs.build.outputs.migrations_tags }}" | head -1`
+            for o in $OVERLAY
+            do
+              ( cd ${{ inputs.overlays_base }}/$o && \
+                kustomize edit set image $MIGRATIONS_IMAGE=$TAG_MIG )
+            done
+          fi
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: '[ci] staging: bump ${{ inputs.image }} image'
@@ -116,6 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tags: ${{ steps.meta.outputs.tags }}
+      migrations_tags: ${{ steps.meta-migrations.outputs.tags }}
     steps:
       - id: checkout
         name: Checkout
@@ -172,4 +201,43 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=${{ inputs.image }}
           cache-to: type=gha,mode=max,scope=${{ inputs.image }}
+          platforms: ${{ inputs.image_platforms }}
+      # Optional migrations image — built in the same job so that a failure of either image
+      # fails the whole run and neither is bumped/deployed (atomic build). The bump jobs then
+      # update both image tags in a single commit (atomic deploy).
+      - name: Add GAR (migrations)
+        id: add-gar-migrations
+        if: inputs.migrations_dockerfile != ''
+        env:
+          MIGRATIONS_IMAGE: ${{ inputs.migrations_image != '' && inputs.migrations_image || format('{0}-migrations', inputs.image) }}
+        run: |
+          {
+            echo 'images<<EOF'
+            echo "$MIGRATIONS_IMAGE" | sed -E 's#(gcr.io/atb-mobility-platform)/(.*)#europe-west1-docker.pkg.dev/amp-artifacts/${{ inputs.image_repository }}/\2#g'
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+      - name: Docker meta (migrations)
+        id: meta-migrations
+        if: inputs.migrations_dockerfile != ''
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.add-gar-migrations.outputs.images }}
+          tags: |
+            type=semver,pattern={{raw}},priority=900
+            type=sha,prefix=,enable=true,format=short,priority=800
+            type=raw,value=latest,enable={{is_default_branch}},priority=100
+      - id: buildpush-migrations
+        name: Build and push migrations image
+        if: inputs.migrations_dockerfile != ''
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          builder: ${{ steps.buildx.outputs.name }}
+          file: ${{ inputs.migrations_dockerfile }}
+          build-args: ${{ inputs.build_args }}
+          secrets: ${{ secrets.build_secrets }}
+          push: true
+          tags: ${{ steps.meta-migrations.outputs.tags }}
+          cache-from: type=gha,scope=${{ inputs.migrations_image != '' && inputs.migrations_image || format('{0}-migrations', inputs.image) }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.migrations_image != '' && inputs.migrations_image || format('{0}-migrations', inputs.image) }}
           platforms: ${{ inputs.image_platforms }}
