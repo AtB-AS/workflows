@@ -1,0 +1,155 @@
+on:
+  workflow_call:
+    secrets:
+      github_pat:
+        description: "Token with read access to private git dependencies. Only needed if the repo has such dependencies."
+        required: false
+    inputs:
+      toolchain:
+        type: string
+        description: "Rust toolchain for clippy and test (e.g. '1.100'). Empty = use rust-toolchain.toml in the calling repo if present, otherwise stable. Keep this in sync with the Dockerfile builder image."
+        default: ""
+        required: false
+      fmt_toolchain:
+        type: string
+        description: "Rust toolchain for cargo fmt. Defaults to nightly because the shared rustfmt config uses nightly-only options (group_imports)."
+        default: nightly
+        required: false
+      protoc:
+        type: boolean
+        description: "Install protoc (needed when a dependency compiles .proto files)"
+        default: false
+        required: false
+      deny_warnings:
+        type: boolean
+        description: "Fail clippy on warnings (-D warnings). Only turn off temporarily while cleaning up a repo."
+        default: true
+        required: false
+      clippy_args:
+        type: string
+        description: "Arguments passed to cargo clippy (before --)"
+        default: "--workspace --all-targets --all-features"
+        required: false
+      test_args:
+        type: string
+        description: "Arguments passed to cargo test"
+        default: "--workspace"
+        required: false
+      audit:
+        type: boolean
+        description: "Run cargo audit against Cargo.lock (RustSec advisories)"
+        default: true
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install toolchain
+        env:
+          TOOLCHAIN: ${{ inputs.fmt_toolchain }}
+        run: |
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --component rustfmt --no-self-update
+          echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install protoc
+        if: inputs.protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ github.token }}
+      - name: Install toolchain
+        env:
+          TOOLCHAIN: ${{ inputs.toolchain }}
+        run: |
+          if [ -z "$TOOLCHAIN" ] && [ ! -f rust-toolchain.toml ] && [ ! -f rust-toolchain ]; then
+            TOOLCHAIN=stable
+          fi
+          if [ -n "$TOOLCHAIN" ]; then
+            rustup toolchain install "$TOOLCHAIN" --profile minimal --component clippy --no-self-update
+            echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+          else
+            rustup show active-toolchain || rustup toolchain install
+            rustup component add clippy
+          fi
+      - name: Set up cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run cargo clippy
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: url.https://git:${{ secrets.github_pat }}@github.com/.insteadOf
+          GIT_CONFIG_VALUE_0: ssh://git@github.com/
+          CLIPPY_ARGS: ${{ inputs.clippy_args }}
+          DENY_WARNINGS: ${{ inputs.deny_warnings }}
+        run: |
+          if [ "$DENY_WARNINGS" = "true" ]; then
+            cargo clippy --locked $CLIPPY_ARGS -- -D warnings
+          else
+            cargo clippy --locked $CLIPPY_ARGS
+          fi
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install protoc
+        if: inputs.protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ github.token }}
+      - name: Install toolchain
+        env:
+          TOOLCHAIN: ${{ inputs.toolchain }}
+        run: |
+          if [ -z "$TOOLCHAIN" ] && [ ! -f rust-toolchain.toml ] && [ ! -f rust-toolchain ]; then
+            TOOLCHAIN=stable
+          fi
+          if [ -n "$TOOLCHAIN" ]; then
+            rustup toolchain install "$TOOLCHAIN" --profile minimal --no-self-update
+            echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+          else
+            rustup show active-toolchain || rustup toolchain install
+          fi
+      - name: Set up cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run cargo test
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: url.https://git:${{ secrets.github_pat }}@github.com/.insteadOf
+          GIT_CONFIG_VALUE_0: ssh://git@github.com/
+          TEST_ARGS: ${{ inputs.test_args }}
+        run: cargo test --locked $TEST_ARGS
+
+  audit:
+    name: Audit
+    if: inputs.audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: Run cargo audit
+        run: cargo audit

@@ -3,6 +3,64 @@
 Collection of reusable GitHub Actions workflows:
 
 - [Docker Build, Push & Deploy](#docker-build-push--deploy)
+- [Rust](#rust)
+
+## Rust
+
+[Workflow file](.github/workflows/rust.yaml)
+
+Runs the standard checks for a Rust repository:
+
+- **Format**: `cargo fmt --all -- --check` (nightly by default, since the shared rustfmt config uses `group_imports`).
+- **Clippy**: `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`.
+- **Test**: `cargo test --locked --workspace`.
+- **Audit**: `cargo audit` against `Cargo.lock`.
+
+### Example usage
+
+```yaml
+name: Rust
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  rust:
+    uses: atb-as/workflows/.github/workflows/rust.yaml@v2
+    with:
+      toolchain: "1.100"
+      protoc: true
+    secrets:
+      github_pat: ${{ secrets.GH_PAT }}
+```
+
+### Inputs
+
+| Input           | Default                                    | Description                                                                                             |
+| --------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `toolchain`     | `""`                                       | Toolchain for clippy and test. Empty uses `rust-toolchain.toml` in the calling repo, otherwise stable.  |
+| `fmt_toolchain` | `nightly`                                  | Toolchain for `cargo fmt`.                                                                              |
+| `protoc`        | `false`                                    | Install `protoc` (needed when a dependency compiles `.proto` files, e.g. `entur-proto`).                |
+| `deny_warnings` | `true`                                     | Fail clippy on warnings. Only turn off temporarily while cleaning up a repo.                            |
+| `clippy_args`   | `--workspace --all-targets --all-features` | Arguments passed to `cargo clippy`.                                                                     |
+| `test_args`     | `--workspace`                              | Arguments passed to `cargo test`.                                                                       |
+| `audit`         | `true`                                     | Run `cargo audit`.                                                                                      |
+
+### Toolchain
+
+CI and the Docker image should build with the same compiler. Either pass `toolchain` with the
+same version as the `FROM rust:<version>` builder image in the Dockerfile, or commit a
+`rust-toolchain.toml` and leave `toolchain` empty.
+
+### Private git dependencies
+
+`github_pat` is only needed when the repository depends on private git repositories. The token
+is given to git through the environment of the cargo step only. It is never written to
+`~/.gitconfig`, so it does not end up in a cache. Dependencies must use the
+`ssh://git@github.com/...` URL form.
 
 ## Docker Build, Push & Deploy
 
