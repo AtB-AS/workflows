@@ -1,0 +1,139 @@
+on:
+  workflow_call:
+    secrets:
+      github_pat:
+        description: "Token with read access to private git dependencies. Only needed if the repo has such dependencies."
+        required: false
+    inputs:
+      toolchain:
+        type: string
+        description: "Rust toolchain for clippy and test (e.g. '1.100'). Empty = use rust-toolchain.toml in the calling repo if present, otherwise stable. Keep this in sync with the Dockerfile builder image."
+        default: ""
+        required: false
+      fmt_toolchain:
+        type: string
+        description: "Rust toolchain for cargo fmt. Defaults to nightly because the shared rustfmt config uses nightly-only options (group_imports)."
+        default: nightly
+        required: false
+      protoc:
+        type: boolean
+        description: "Install protoc (needed when a dependency compiles .proto files)"
+        default: false
+        required: false
+      deny_warnings:
+        type: boolean
+        description: "Fail clippy on warnings (-D warnings). Only turn off temporarily while cleaning up a repo."
+        default: true
+        required: false
+      clippy_args:
+        type: string
+        description: "Arguments passed to cargo clippy (before --)"
+        default: "--workspace --all-targets --all-features"
+        required: false
+      test_args:
+        type: string
+        description: "Arguments passed to cargo test"
+        default: "--workspace"
+        required: false
+      audit:
+        type: boolean
+        description: "Run cargo audit against Cargo.lock (RustSec advisories)"
+        default: true
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Rust
+        uses: atb-as/workflows/.github/actions/setup-rust@v2
+        with:
+          toolchain: ${{ inputs.fmt_toolchain }}
+          components: rustfmt
+          cache: false
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Rust
+        uses: atb-as/workflows/.github/actions/setup-rust@v2
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: clippy
+          protoc: ${{ inputs.protoc }}
+          fetch: true
+          github-pat: ${{ secrets.github_pat }}
+          # The cache holds the sources of private dependencies. In a public repository a
+          # pull request from a fork can read the caches of the base branch, so only save
+          # when the repository is private or no private dependencies were fetched.
+          save-cache: ${{ github.event.repository.private || secrets.github_pat == '' }}
+      - name: Run cargo clippy
+        env:
+          CARGO_NET_OFFLINE: "true"
+          CLIPPY_ARGS: ${{ inputs.clippy_args }}
+          DENY_WARNINGS: ${{ inputs.deny_warnings }}
+        # xargs splits the arguments like a shell would (quotes group words), but without
+        # evaluating them: no globbing, no expansion, no command substitution.
+        run: |
+          if [ "$DENY_WARNINGS" = "true" ]; then
+            CLIPPY_ARGS="$CLIPPY_ARGS -- -D warnings"
+          fi
+          xargs cargo clippy --locked <<< "$CLIPPY_ARGS"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Rust
+        uses: atb-as/workflows/.github/actions/setup-rust@v2
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          protoc: ${{ inputs.protoc }}
+          fetch: true
+          github-pat: ${{ secrets.github_pat }}
+          save-cache: ${{ github.event.repository.private || secrets.github_pat == '' }}
+      - name: Run cargo test
+        env:
+          CARGO_NET_OFFLINE: "true"
+          TEST_ARGS: ${{ inputs.test_args }}
+        run: xargs cargo test --locked <<< "$TEST_ARGS"
+
+  audit:
+    name: Audit
+    if: inputs.audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-audit
+      # Called directly rather than as `cargo audit`: going through cargo would make rustup
+      # download the toolchain from rust-toolchain.toml, which the audit does not need.
+      - name: Run cargo audit
+        run: cargo-audit audit

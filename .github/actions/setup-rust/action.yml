@@ -1,0 +1,96 @@
+name: Set up Rust
+description: >-
+  Installs the Rust toolchain and, optionally, protoc, a build cache and the dependencies of
+  the workspace. Used by the jobs of the reusable Rust workflow.
+
+inputs:
+  toolchain:
+    description: "Rust toolchain (e.g. '1.100'). Empty = use rust-toolchain.toml in the repository if present, otherwise stable."
+    default: ""
+    required: false
+  components:
+    description: "Comma separated rustup components to install (e.g. 'clippy')"
+    default: ""
+    required: false
+  protoc:
+    description: "Install protoc"
+    default: "false"
+    required: false
+  cache:
+    description: "Restore the cargo registry, git dependencies and target directory from cache"
+    default: "true"
+    required: false
+  save-cache:
+    description: "Save the cache at the end of the job. Set to false when the cache would hold private sources that others can read."
+    default: "true"
+    required: false
+  fetch:
+    description: "Download all dependencies (cargo fetch --locked), so that later steps can run offline and without credentials"
+    default: "false"
+    required: false
+  github-pat:
+    description: "Token with read access to private git dependencies. Only used by the fetch step."
+    default: ""
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Install protoc
+      if: inputs.protoc == 'true'
+      uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
+      with:
+        repo-token: ${{ github.token }}
+
+    - name: Install toolchain
+      shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+        COMPONENTS: ${{ inputs.components }}
+      run: |
+        if [ -z "$TOOLCHAIN" ] && [ ! -f rust-toolchain.toml ] && [ ! -f rust-toolchain ]; then
+          TOOLCHAIN=stable
+        fi
+        if [ -n "$TOOLCHAIN" ]; then
+          # Components are requested as part of the install: for nightly, rustup then picks
+          # the most recent build that has them, instead of failing when today's lacks one.
+          rustup toolchain install "$TOOLCHAIN" --profile minimal --no-self-update \
+            ${COMPONENTS:+--component "$COMPONENTS"}
+          echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+        else
+          # Toolchain, components and targets come from rust-toolchain(.toml) in the
+          # repository. Always run the install: the runner image may already have a toolchain
+          # that satisfies the channel but is outdated or lacks the listed components.
+          rustup toolchain install --no-self-update
+          if [ -n "$COMPONENTS" ]; then
+            rustup component add ${COMPONENTS//,/ }
+          fi
+        fi
+
+    - name: Set up cache
+      if: inputs.cache == 'true'
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        save-if: ${{ inputs.save-cache }}
+
+    # The token is passed to git through the environment of this step only. It is never written
+    # to ~/.gitconfig or to disk, and it is not in the environment of the steps that compile
+    # and run code (build scripts, procedural macros, tests). That keeps it away from code that
+    # reads its environment or files; it is not a barrier against code that deliberately
+    # attacks the runner. git only reads GIT_CONFIG_* when cargo shells out to it, hence
+    # CARGO_NET_GIT_FETCH_WITH_CLI.
+    - name: Fetch dependencies
+      if: inputs.fetch == 'true'
+      shell: bash
+      env:
+        GITHUB_PAT: ${{ inputs.github-pat }}
+        CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      run: |
+        if [ -n "$GITHUB_PAT" ]; then
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="url.https://git:${GITHUB_PAT}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_0="ssh://git@github.com/"
+        elif grep -q 'git+ssh://' Cargo.lock 2> /dev/null; then
+          echo "::warning::Cargo.lock has git dependencies fetched over ssh, but no github_pat was given. The fetch will fail if they are private. Pull requests from forks and from Dependabot do not receive the repository's Actions secrets."
+        fi
+        cargo fetch --locked
