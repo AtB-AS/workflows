@@ -49,6 +49,10 @@ jobs:
 | `test_args`     | `--workspace`                              | Arguments passed to `cargo test`.                                                                       |
 | `audit`         | `true`                                     | Run `cargo audit`.                                                                                      |
 
+`clippy_args` and `test_args` are split on whitespace. Use quotes to keep a value with spaces
+together (`--features "one two"`). They are not evaluated by a shell, so globs and variables
+are passed to cargo as written.
+
 ### Toolchain
 
 CI and the Docker image should build with the same compiler. Either pass `toolchain` with the
@@ -58,9 +62,48 @@ same version as the `FROM rust:<version>` builder image in the Dockerfile, or co
 ### Private git dependencies
 
 `github_pat` is only needed when the repository depends on private git repositories. The token
-is given to git through the environment of the cargo step only. It is never written to
-`~/.gitconfig`, so it does not end up in a cache. Dependencies must use the
+only needs read access to those repositories. Dependencies must use the
 `ssh://git@github.com/...` URL form.
+
+How the token is handled:
+
+- It is used by one step, `cargo fetch --locked`, and passed to git through the environment of
+  that step. It is never written to `~/.gitconfig`.
+- Clippy and the tests then run offline. The token is not in their environment, in git
+  configuration or on disk, so build scripts, procedural macros and test code do not see it by
+  reading those. This is not a barrier against code that deliberately attacks the runner, so
+  keep the token read-only and limited to the repositories that are needed.
+- The build cache holds the sources of the private dependencies. It is only saved when the
+  calling repository is private (or no token was given), because in a public repository a pull
+  request from a fork can read the caches of the base branch.
+
+### Pull requests from forks and from Dependabot
+
+GitHub does not pass the repository's Actions secrets to workflows triggered by a pull request
+from a fork, or by a pull request from Dependabot. In a repository with private git
+dependencies, Clippy and Test cannot fetch them and fail for such pull requests. Format and
+Audit still work.
+
+- **Dependabot**: add the token as a Dependabot secret with the same name (repository or
+  organisation settings, _Secrets and variables_, _Dependabot_). Dependabot pull requests then
+  get it.
+- **Forks**: to skip the workflow for fork pull requests instead of failing:
+
+  ```yaml
+  jobs:
+    rust:
+      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: atb-as/workflows/.github/workflows/rust.yaml@v2
+  ```
+
+### Shared setup action
+
+The jobs share their setup (toolchain, protoc, cache, dependency download) through the
+composite action [`setup-rust`](.github/actions/setup-rust/action.yml). The workflow refers to
+it as `atb-as/workflows/.github/actions/setup-rust@v2`, because a reusable workflow cannot
+refer to its own repository with a relative path. The workflow and the action are therefore
+released together by moving the `v2` tag. To test a branch, point the three references in
+`rust.yaml` at that branch while testing.
 
 ## Docker Build, Push & Deploy
 
